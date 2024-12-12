@@ -1,11 +1,11 @@
 # AI-Powered Fact Checker
 
-An intelligent fact-checking assistant that combines Brave Search API with AI analysis using GLHF.chat's Mistral model. This project provides both a command-line interface and a Streamlit web interface for verifying statements and claims using real-time web search results.
+An intelligent fact-checking assistant that combines Brave Search API with AI analysis using GLHF.chat's LLama 3.3 70B model. This project provides both a command-line interface and a Streamlit web interface for verifying statements and claims using real-time web search results.
 
 ## Features
 
 - Statement verification using Brave Search API
-- AI-powered fact analysis using Mistral-7B-Instruct model
+- AI-powered fact analysis using LLama 3.3 70B model
 - Detailed accuracy ratings:
   - TRUE: Completely accurate
   - MOSTLY TRUE: Generally accurate with minor inaccuracies
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 ```env
 GLHF_API_KEY=your_glhf_api_key
 BRAVE_API_KEY=your_brave_api_key
-LLM_MODEL=hf:mistralai/Mistral-7B-Instruct-v0.3
+LLM_MODEL=hf:meta-llama/Llama-3.3-70B-Instruct
 ```
 
 ## Usage
@@ -119,7 +119,7 @@ Logs include:
 
 - `GLHF_API_KEY` - Your GLHF.chat API key
 - `BRAVE_API_KEY` - Your Brave Search API key
-- `LLM_MODEL` - The language model to use (default: Mistral-7B-Instruct-v0.3)
+- `LLM_MODEL` - The language model to use (default: LLama 3.3 70B model)
 
 ## Contributing
 
@@ -136,6 +136,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Brave Search API for web search capabilities
-- GLHF.chat for providing the Mistral model access
+- GLHF.chat for providing the Llama model access
 - Streamlit for the web interface framework
 - logfire for comprehensive logging
