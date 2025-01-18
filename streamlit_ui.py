@@ -9,6 +9,7 @@ import re
 import time
 import bleach
 import html
+import json
 
 from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIModel
@@ -259,8 +260,6 @@ async def main():
             st.rerun()
             
         if st.button("Export History"):
-            import json
-            from datetime import datetime
             history = {
                 "exported_at": datetime.now().isoformat(),
                 "queries": st.session_state.query_history
