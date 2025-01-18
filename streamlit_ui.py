@@ -100,22 +100,18 @@ model = OpenAIModel(llm, openai_client=client)
 
 def sanitize_html(content: str) -> str:
     """Sanitize HTML content to prevent XSS attacks."""
-    # Define allowed tags and attributes
     allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'span', 'div']
     allowed_attributes = {
         'a': ['href', 'title'],
         'span': ['class'],
         'div': ['class']
     }
-    
-    # Clean the HTML content
-    cleaned = bleach.clean(
+    return bleach.clean(
         content,
         tags=allowed_tags,
         attributes=allowed_attributes,
         strip=True
     )
-    return cleaned
 
 def display_verdict(verdict: str, column):
     """Safely display the verdict with proper styling."""
@@ -125,8 +121,7 @@ def display_verdict(verdict: str, column):
 
 def display_explanation(explanation: str, column):
     """Safely display the explanation with sanitized HTML."""
-    sanitized = sanitize_html(explanation)
-    column.markdown(sanitized, unsafe_allow_html=True)
+    column.markdown(sanitize_html(explanation), unsafe_allow_html=True)
 
 def display_references(references: list, column):
     """Safely display references with sanitized content."""
@@ -152,10 +147,7 @@ def format_response(response_text, search_time, analysis_time):
     
     total_time = search_time + analysis_time
     
-    # Get verdict class for styling
-    verdict_class = verdict.lower().replace(' ', '-')
-    
-    formatted_text = f"""
+    return f"""
 ⏱️ _Search completed in {search_time:.2f}s, Analysis in {analysis_time:.2f}s (Total: {total_time:.2f}s)_
 
 {verdict}
@@ -169,7 +161,6 @@ def format_response(response_text, search_time, analysis_time):
 ### References
 {references}
     """
-    return formatted_text
 
 async def analyze_statement(statement, raw_search_results, search_time):
     """Analyze a statement using the search results."""
@@ -232,14 +223,51 @@ async def main():
         _Note: Some claims may be marked as "UNVERIFIABLE" if there isn't enough reliable evidence to make a determination._
         """)
 
-    # Initialize chat history
+    # Initialize session state variables
     if "messages" not in st.session_state:
-        st.session_state.messages = []    
+        st.session_state.messages = []
+    if "query_history" not in st.session_state:
+        st.session_state.query_history = []
+    if "current_query_id" not in st.session_state:
+        st.session_state.current_query_id = None
+        
+    # Sidebar for query history
+    with st.sidebar:
+        st.markdown("### Query History")
+        
+        if st.button("Clear History"):
+            st.session_state.messages = []
+            st.session_state.query_history = []
+            st.session_state.current_query_id = None
+            st.rerun()
+            
+        # Display query history with navigation
+        for query in reversed(st.session_state.query_history):
+            if st.button(f"{query['timestamp']} - {query['query'][:50]}..."):
+                st.session_state.current_query_id = query['id']
+                st.rerun()
 
-    # Display chat messages from history
-    for message in st.session_state.messages:
-        with st.chat_message("human" if isinstance(message, UserPrompt) else "assistant"):
-            st.markdown(message.content, unsafe_allow_html=True)
+    # Display chat messages from history with timestamp
+    if st.session_state.current_query_id:
+        # Show specific query from history
+        query = next((q for q in st.session_state.query_history if q['id'] == st.session_state.current_query_id), None)
+        if query:
+            with st.chat_message("human"):
+                st.markdown(f"**You**: {query['query']}", unsafe_allow_html=True)
+            with st.chat_message("assistant"):
+                st.markdown(query['response'], unsafe_allow_html=True)
+                st.markdown("---")
+                st.caption("ℹ️ Each fact-check is independent and based on current web evidence")
+    else:
+        # Show full conversation
+        for message in st.session_state.messages:
+            with st.chat_message("human" if isinstance(message, UserPrompt) else "assistant"):
+                if isinstance(message, UserPrompt):
+                    st.markdown(f"**You**: {message.content}", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"**AI**: {message.content}", unsafe_allow_html=True)
+                    st.markdown("---")
+                    st.caption("ℹ️ Each fact-check is independent and based on current web evidence")
 
     # Handle user input
     if prompt := st.chat_input("Enter a statement to fact-check..."):
@@ -266,7 +294,21 @@ async def main():
                     response_content = formatted_chunk
                     message_placeholder.markdown(response_content, unsafe_allow_html=True)
         
+        # Store the query in history
+        query_id = str(time.time())
+        st.session_state.query_history.append({
+            'id': query_id,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'query': prompt,
+            'response': response_content
+        })
+        
+        # Add to messages and set as current query
         st.session_state.messages.append(ModelTextResponse(content=response_content))
+        st.session_state.current_query_id = query_id
+        
+        # Force refresh to update query history sidebar
+        st.rerun()
 
 if __name__ == "__main__":
     asyncio.run(main())
