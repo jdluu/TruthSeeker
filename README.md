@@ -28,11 +28,14 @@ A live demo of the application is available at:
   - Detailed explanation
   - Context and nuance
   - Referenced sources with links
+  - Query history with searchable past results
+  - Export results to JSON/CSV formats
 - Modern, responsive UI features:
   - Mobile-friendly design
   - Dark theme for better readability
   - Clear typography and spacing
   - Collapsible sections
+  - Persistent query history across sessions
 - Two interfaces:
   - Command-line interface (CLI)
   - Web interface using Streamlit
@@ -44,7 +47,7 @@ A live demo of the application is available at:
 
 ## Prerequisites
 
-- Python 3.10 or higher
+- Python 3.10 or higher (required for modern dependencies like Pydantic v2)
 - Brave Search API key (free tier available, requires payment info but no charges unless upgraded)
 - GLHF.chat API key (currently free as of December 2024, may change in future)
 
@@ -148,14 +151,25 @@ The web interface will open in your default browser. Enter your statement in the
 
   - Core search functionality
   - Brave API integration
-  - CLI interface
+  - CLI interface with rich formatting
   - Logging setup
+  - Pydantic data models for API responses
+  - Error handling and validation
 
 - `streamlit_ui.py`:
+
   - Web interface implementation
   - Responsive design
   - Real-time updates
   - Error handling
+  - Data validation with Pydantic
+  - Rich visualizations
+
+- `shared_utils.py`:
+  - Common utility functions
+  - Data processing and transformation
+  - Shared validation logic
+  - API response formatting
 
 ## Environment Variables
 
