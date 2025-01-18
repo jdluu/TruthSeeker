@@ -204,11 +204,24 @@ async def analyze_statement(statement, raw_search_results, search_time):
 
 async def main():
     """Main function to create and run the Streamlit UI."""
+    # Initialize session state variables
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "query_history" not in st.session_state:
+        st.session_state.query_history = []
+    if "current_query_id" not in st.session_state:
+        st.session_state.current_query_id = None
+
     st.title("🔍 AI-Powered Fact Checker")
     st.markdown("""
     This tool helps verify statements by searching the web and analyzing the results using AI.
     Enter a statement or claim below to check its accuracy.
     """)
+    
+    if not st.session_state.query_history:
+        st.info("ℹ️ Your query history will appear here after your first search. Use the > button at the top left to view and export your history.")
+    else:
+        st.info(f"ℹ️ You have {len(st.session_state.query_history)} saved queries. Use the > button at the top left to view and export your history.")
 
     with st.expander("ℹ️ Understanding the Truthfulness Ratings"):
         st.markdown("""
@@ -234,12 +247,30 @@ async def main():
     # Sidebar for query history
     with st.sidebar:
         st.markdown("### Query History")
+        st.warning("""
+        Query history is stored in your browser session and will be lost if you refresh the page.
+        Use the export button below to save your conversation history.
+        """)
         
         if st.button("Clear History"):
             st.session_state.messages = []
             st.session_state.query_history = []
             st.session_state.current_query_id = None
             st.rerun()
+            
+        if st.button("Export History"):
+            import json
+            from datetime import datetime
+            history = {
+                "exported_at": datetime.now().isoformat(),
+                "queries": st.session_state.query_history
+            }
+            st.download_button(
+                label="Download History",
+                data=json.dumps(history, indent=2),
+                file_name=f"fact_check_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
             
         # Display query history with navigation
         for query in reversed(st.session_state.query_history):
