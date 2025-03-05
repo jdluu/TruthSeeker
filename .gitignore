@@ -36,3 +36,6 @@ htmlcov/
 
 # System Files
 Thumbs.db
+
+# Generated pdf files
+*.pdf
