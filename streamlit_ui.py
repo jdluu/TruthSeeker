@@ -10,9 +10,12 @@ import time
 import bleach
 import html
 import json
+import base64
 
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.messages import ModelTextResponse, UserPrompt, SystemPrompt
+
+from utils.generate_pdf import generate_pdf
 
 from utils.ai_client_loader import initialize_openai_client
 from utils.sanitization import sanitize_query, sanitize_html
@@ -239,19 +242,37 @@ async def main():
             st.session_state.query_history = []
             st.session_state.current_query_id = None
             st.rerun()
+        
+        export_format = st.radio(
+            "Export format:",
+            ("JSON", "PDF"),
+            horizontal=True
+        )
             
         if st.button("Export History"):
             history = {
                 "exported_at": datetime.now().isoformat(),
                 "queries": st.session_state.query_history
             }
-            st.download_button(
-                label="Download History",
-                data=json.dumps(history, indent=2),
-                file_name=f"fact_check_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json"
-            )
-            
+            if export_format == "JSON":
+                st.download_button(
+                    label="Download History (JSON)",
+                    data=json.dumps(history, indent=2),
+                    file_name=f"fact_check_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json"
+                )
+            elif export_format == "PDF":
+                pdf_filename = f"fact_check_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                generate_pdf(st.session_state.query_history, pdf_filename)
+                
+                with open(pdf_filename, "rb") as pdf_file:
+                    pdf_bytes = pdf_file.read()
+                    pdf_base64 = base64.b64encode(pdf_bytes).decode()
+                
+                st.markdown(
+                    f'<a href="data:application/pdf;base64,{pdf_base64}" download="{pdf_filename}">Download History (PDF)</a>',
+                    unsafe_allow_html=True,
+                )
         # Display query history with navigation
         for query in reversed(st.session_state.query_history):
             if st.button(f"{query['timestamp']} - {query['query'][:50]}..."):
