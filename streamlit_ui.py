@@ -11,11 +11,13 @@ import bleach
 import html
 import json
 
-from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.messages import ModelTextResponse, UserPrompt, SystemPrompt
 
-from web_search_agent import search_web_direct
+from utils.ai_client_loader import initialize_openai_client
+from utils.sanitization import sanitize_query, sanitize_html
+from tools.web_search import search_web_direct
+from models.search_result import SearchResult
 
 # Page configuration and styling
 st.set_page_config(
@@ -86,33 +88,12 @@ st.markdown("""
 # Load environment variables and initialize clients
 @st.cache_resource
 def init_clients():
-    load_dotenv()
     llm = os.getenv('LLM_MODEL', 'hf:mistralai/Mistral-7B-Instruct-v0.3')
-    client = AsyncOpenAI(
-        base_url='https://glhf.chat/api/openai/v1',
-        api_key=os.getenv('GLHF_API_KEY')
-    )
-    logfire.configure(send_to_logfire='if-token-present')
-    logfire.instrument_openai(client)
+    client = initialize_openai_client()
     return client, llm
 
 client, llm = init_clients()
 model = OpenAIModel(llm, openai_client=client)
-
-def sanitize_html(content: str) -> str:
-    """Sanitize HTML content to prevent XSS attacks."""
-    allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'span', 'div']
-    allowed_attributes = {
-        'a': ['href', 'title'],
-        'span': ['class'],
-        'div': ['class']
-    }
-    return bleach.clean(
-        content,
-        tags=allowed_tags,
-        attributes=allowed_attributes,
-        strip=True
-    )
 
 def display_verdict(verdict: str, column):
     """Safely display the verdict with proper styling."""

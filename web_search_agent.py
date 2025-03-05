@@ -3,7 +3,6 @@ from __future__ import annotations as _annotations
 import asyncio
 import os
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 import re
@@ -18,36 +17,23 @@ from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai import Agent, ModelRetry, RunContext
 
-from shared_utils import format_output, parse_response, init_logging
+from utils.shared_utils import format_output, parse_response, init_logging
+from utils.sanitization import sanitize_query
+from utils.ai_client_loader import initialize_openai_client
+from tools.web_search import search_web_direct
+from models.search_result import SearchResult
+from models.deps import Deps
 
 load_dotenv()
 llm = os.getenv('LLM_MODEL', 'hf:mistralai/Mistral-7B-Instruct-v0.3')
 
 # Initialize OpenAI client and configure logfire
-client = AsyncOpenAI(
-    base_url='https://glhf.chat/api/openai/v1',
-    api_key=os.getenv('GLHF_API_KEY')
-)
-
-logfire.configure(send_to_logfire='if-token-present')
-logfire.instrument_openai(client)
+client = initialize_openai_client()
 
 model = OpenAIModel(
     llm,
     openai_client=client,
 )
-
-@dataclass
-class SearchResult:
-    title: str
-    description: str
-    url: str
-    query_time: float
-
-@dataclass
-class Deps:
-    client: AsyncClient
-    brave_api_key: str | None
 
 web_search_agent = Agent(
     model,
@@ -55,11 +41,6 @@ web_search_agent = Agent(
     deps_type=Deps,
     retries=2
 )
-
-def sanitize_query(query: str) -> str:
-    """Sanitize the search query to prevent injection attacks."""
-    sanitized = re.sub(r'[^\w\s-]', '', query)
-    return sanitized[:500]
 
 @web_search_agent.tool
 async def search_web(
@@ -115,56 +96,6 @@ async def search_web(
     ]
     
     return f"Search completed in {query_time:.2f} seconds.\n\n" + "\n---\n".join(formatted_results)
-
-async def search_web_direct(client: AsyncClient, brave_api_key: str | None, web_query: str) -> list[dict]:
-    """Search the web given a query defined to answer the user's question."""
-    start_time = time.time()
-    
-    if brave_api_key is None:
-        return [{
-            "title": "Test Result",
-            "description": "This is a test web search result. Please provide a Brave API key to get real search results.",
-            "url": "#"
-        }]
-
-    headers: dict[str, str] = {
-        'X-Subscription-Token': brave_api_key,
-        'Accept': 'application/json',
-    }
-    
-    try:
-        r: Response = await client.get(
-            'https://api.search.brave.com/res/v1/web/search',
-            params={
-                'q': web_query,
-                'count': 5,
-                'text_decorations': True,
-                'search_lang': 'en'
-            },
-            headers=headers
-        )
-        r.raise_for_status()
-        data: dict[str, Any] = r.json()
-    except Exception as e:
-        logfire.error('Error calling Brave API', error=str(e))
-        return [{
-            "title": "Error",
-            "description": "Error performing web search. Please try again.",
-            "url": "#"
-        }]
-
-    query_time = time.time() - start_time
-    results = []
-    
-    for web_result in data.get('web', {}).get('results', []):
-        results.append({
-            "title": web_result.get('title', 'No title'),
-            "description": web_result.get('description', 'No description available'),
-            "url": web_result.get('url', '#'),
-            "query_time": query_time
-        })
-    
-    return results
 
 async def main():
     init_logging()
