@@ -90,3 +90,4 @@ pydantic-ai
 devtools
 colorama
 rich
+reportlab
