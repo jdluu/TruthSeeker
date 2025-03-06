@@ -62,6 +62,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 pytz==2024.2
 referencing==0.35.1
+reportlab
 requests==2.32.3
 rich==13.9.4
 rpds-py==0.22.3
@@ -81,13 +82,5 @@ watchdog==6.0.0
 wrapt==1.17.0
 zipp==3.21.0
 
-httpx
-streamlit
-logfire
-openai
-python-dotenv
-pydantic-ai
-devtools
-colorama
-rich
-reportlab
+
+
