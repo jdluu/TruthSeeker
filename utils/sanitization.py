@@ -1,6 +1,5 @@
 import re
 import bleach
-import html
 
 def sanitize_query(query: str) -> str:
     """Sanitize the search query to prevent injection attacks."""

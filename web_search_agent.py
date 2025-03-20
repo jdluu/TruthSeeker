@@ -5,17 +5,14 @@ import os
 import time
 from datetime import datetime
 from typing import Any
-import re
 
 import logfire
-from devtools import debug
 from httpx import AsyncClient, Response
 from dotenv import load_dotenv
 from rich.console import Console
 
-from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, RunContext
 
 from utils.shared_utils import format_output, parse_response, init_logging
 from utils.sanitization import sanitize_query

@@ -1,11 +1,7 @@
-import asyncio
-import os
 import time
 import logfire
 
 from httpx import AsyncClient, Response
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
 
 async def search_web_direct(client: AsyncClient, brave_api_key: str | None, web_query: str) -> list[dict]:
     """Search the web given a query defined to answer the user's question."""

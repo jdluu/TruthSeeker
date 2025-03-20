@@ -1,26 +1,25 @@
-from dotenv import load_dotenv
+
 from httpx import AsyncClient
 from datetime import datetime
 import streamlit as st
 import asyncio
 import os
-import logfire
+
 import re
 import time
-import bleach
+
 import html
 import json
 import base64
 
 from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.messages import ModelTextResponse, UserPrompt, SystemPrompt
+from pydantic_ai.messages import ModelTextResponse, UserPrompt
 
 from utils.generate_pdf import generate_pdf
 
 from utils.ai_client_loader import initialize_openai_client
-from utils.sanitization import sanitize_query, sanitize_html
+from utils.sanitization import sanitize_html
 from tools.web_search import search_web_direct
-from models.search_result import SearchResult
 
 # Page configuration and styling
 st.set_page_config(
