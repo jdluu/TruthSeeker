@@ -1,25 +1,27 @@
 
-from httpx import AsyncClient
 from datetime import datetime
 import streamlit as st
 import asyncio
 import os
-
-import re
+ 
 import time
-
+from typing import Any, List, Tuple
+ 
 import html
 import json
 import base64
 
-from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.messages import ModelTextResponse, UserPrompt
 
 from utils.generate_pdf import generate_pdf
 
 from utils.ai_client_loader import initialize_openai_client
 from utils.sanitization import sanitize_html
-from tools.web_search import search_web_direct
+# Use the new http client factory and BraveSearchClient abstraction
+from src.truthseeker.http import get_async_client
+from src.truthseeker.search.client import BraveSearchClient
+from src.truthseeker.llm.parser import llm_system_prompt, parse_llm_json
+from src.truthseeker.models import AnalysisResult
 
 # Page configuration and styling
 st.set_page_config(
@@ -89,102 +91,115 @@ st.markdown("""
 
 # Load environment variables and initialize clients
 @st.cache_resource
-def init_clients():
-    llm = os.getenv('LLM_MODEL', 'hf:mistralai/Mistral-7B-Instruct-v0.3')
+def init_clients() -> Tuple[Any, str]:
+    llm = os.getenv("LLM_MODEL", "hf:mistralai/Mistral-7B-Instruct-v0.3")
     client = initialize_openai_client()
     return client, llm
-
+ 
 client, llm = init_clients()
-model = OpenAIModel(llm, openai_client=client)
 
-def display_verdict(verdict: str, column):
+def display_verdict(verdict: Any, column: Any) -> None:
     """Safely display the verdict with proper styling."""
-    verdict = html.escape(verdict.upper())
-    safe_html = f'<div class="verdict {verdict.lower()}">{verdict}</div>'
+    raw = verdict.value if hasattr(verdict, "value") else str(verdict)
+    v = html.escape(raw.upper())
+    cls_map = {
+        "TRUE": "true",
+        "MOSTLY_TRUE": "partial",
+        "PARTIALLY_TRUE": "partial",
+        "MOSTLY_FALSE": "false",
+        "FALSE": "false",
+        "UNVERIFIABLE": "unverifiable",
+    }
+    css_class = cls_map.get(v, "unverifiable")
+    safe_html = f'<div class="verdict {css_class}">{v}</div>'
     column.markdown(safe_html, unsafe_allow_html=True)
 
-def display_explanation(explanation: str, column):
+def display_explanation(explanation: str, column: Any) -> None:
     """Safely display the explanation with sanitized HTML."""
     column.markdown(sanitize_html(explanation), unsafe_allow_html=True)
 
-def display_references(references: list, column):
+def display_references(references: List[Any], column: Any) -> None:
     """Safely display references with sanitized content."""
     if references:
         column.markdown("### References")
         for ref in references:
-            title = html.escape(ref.get('title', ''))
-            url = html.escape(ref.get('url', ''))
-            safe_html = f'<a href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>'
+            title = getattr(ref, "title", None) or (ref.get("title") if isinstance(ref, dict) else "")
+            url = getattr(ref, "url", None) or (ref.get("url") if isinstance(ref, dict) else "")
+            title_esc = html.escape(title or "")
+            url_esc = html.escape(str(url or ""))
+            safe_html = f'<a href="{url_esc}" target="_blank" rel="noopener noreferrer">{title_esc or url_esc}</a>'
             column.markdown(safe_html, unsafe_allow_html=True)
 
-def format_response(response_text, search_time, analysis_time):
-    """Format the response text into a structured output with responsive design."""
-    verdict_match = re.search(r'<verdict>(.*?)</verdict>', response_text, re.DOTALL)
-    explanation_match = re.search(r'<explanation>(.*?)</explanation>', response_text, re.DOTALL)
-    context_match = re.search(r'<context>(.*?)</context>', response_text, re.DOTALL)
-    references_match = re.search(r'<references>(.*?)</references>', response_text, re.DOTALL)
-    
-    verdict = verdict_match.group(1).strip() if verdict_match else ""
-    explanation = explanation_match.group(1).strip() if explanation_match else ""
-    context = context_match.group(1).strip() if context_match else ""
-    references = references_match.group(1).strip() if references_match else ""
-    
+def format_response(result: AnalysisResult, search_time: float, analysis_time: float) -> str:
+    """Format an AnalysisResult into a user-facing markdown string.
+
+    This accepts a validated AnalysisResult and produces the same layout as the
+    previous legacy formatter for backward compatibility with the UI.
+    """
+    verdict = result.verdict.value if hasattr(result, "verdict") else str(result.get("verdict", "UNVERIFIABLE"))
+    explanation = result.explanation if getattr(result, "explanation", None) else ""
+    context = result.context or ""
+    references = result.references or []
+
+    # Build references markdown
+    if references:
+        refs_md = "\n".join([f"{i+1}. [{html.escape(r.title)}]({html.escape(str(r.url))})" for i, r in enumerate(references)])
+    else:
+        refs_md = "No references provided."
+
     total_time = search_time + analysis_time
-    
+
     return f"""
 ⏱️ _Search completed in {search_time:.2f}s, Analysis in {analysis_time:.2f}s (Total: {total_time:.2f}s)_
 
-{verdict}
+{html.escape(verdict)}
 
 ### Explanation
-{explanation}
+{sanitize_html(explanation)}
 
 ### Additional Context
-{context}
+{sanitize_html(context)}
 
 ### References
-{references}
+{refs_md}
     """
 
-async def analyze_statement(statement, raw_search_results, search_time):
-    """Analyze a statement using the search results."""
+async def analyze_statement(statement: str, raw_search_results: str, search_time: float) -> AnalysisResult:
+    """Analyze a statement using the search results and return a validated AnalysisResult.
+
+    We ask the LLM to return a single JSON object and validate it using parse_llm_json.
+    """
     analysis_start = time.time()
-    
-    system_prompt = """You are a fact-checking expert. Analyze the following statement and evidence, then provide your analysis in this exact format:
 
-    <verdict>TRUE/FALSE/PARTIALLY TRUE/UNVERIFIABLE</verdict>
-
-    <explanation>
-    Detailed explanation with citations [1], [2], etc.
-    </explanation>
-
-    <context>
-    Important context or nuance with citations [1], [2], etc.
-    </context>
-
-    <references>
-    1. Source Name - URL
-    2. Source Name - URL
-    </references>"""
+    system_prompt = llm_system_prompt()
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Statement: {statement}\n\nEvidence:\n{raw_search_results}"}
+        {"role": "user", "content": f"Statement: {statement}\n\nEvidence:\n{raw_search_results}"},
     ]
 
+    # Use a single non-streamed request to simplify robust parsing
     completion = await client.chat.completions.create(
         model=llm,
         messages=messages,
-        stream=True
     )
 
-    full_response = ""
-    async for chunk in completion:
-        if chunk.choices[0].delta.content is not None:
-            content = chunk.choices[0].delta.content
-            full_response += content
-            analysis_time = time.time() - analysis_start
-            yield format_response(full_response, search_time, analysis_time)
+    full_response = completion.choices[0].message.content
+    analysis_time = time.time() - analysis_start
+
+    # Parse and validate into AnalysisResult
+    ar = parse_llm_json(full_response)
+    # Populate timings
+    try:
+        ar.search_time = float(search_time)
+    except Exception:
+        ar.search_time = search_time or 0.0
+    try:
+        ar.analysis_time = float(analysis_time)
+    except Exception:
+        ar.analysis_time = analysis_time or 0.0
+
+    return ar
 
 async def main():
     """Main function to create and run the Streamlit UI."""
@@ -220,13 +235,6 @@ async def main():
         _Note: Some claims may be marked as "UNVERIFIABLE" if there isn't enough reliable evidence to make a determination._
         """)
 
-    # Initialize session state variables
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "query_history" not in st.session_state:
-        st.session_state.query_history = []
-    if "current_query_id" not in st.session_state:
-        st.session_state.current_query_id = None
         
     # Sidebar for query history
     with st.sidebar:
@@ -236,10 +244,12 @@ async def main():
         Use the export button below to save your conversation history.
         """)
         
-        if st.button("Clear History"):
+        if st.button("Clear History", key="clear_history"):
             st.session_state.messages = []
             st.session_state.query_history = []
             st.session_state.current_query_id = None
+            st.caption("Clears local query history from your browser session.")
+            st.markdown('<span class="sr-only">Clear history button. Press Enter to activate when focused.</span>', unsafe_allow_html=True)
             st.rerun()
         
         export_format = st.radio(
@@ -311,19 +321,41 @@ async def main():
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             
-            # First, search the web
+            # First, search the web (using BraveSearchClient abstraction)
             search_start = time.time()
             with st.spinner("🔍 Searching the web..."):
-                async with AsyncClient() as http_client:
-                    brave_api_key = os.getenv('BRAVE_API_KEY', None)
-                    raw_search_results = await search_web_direct(http_client, brave_api_key, f"fact check {prompt}")
+                brave_api_key = os.getenv("BRAVE_API_KEY", None)
+                http_client = get_async_client()
+                try:
+                    bclient = BraveSearchClient(api_key=brave_api_key, client=http_client)
+                    results = await bclient.search(f"fact check {prompt}", count=5)
+                    # Convert typed results into the legacy raw string format expected by the analyzer
+                    raw_search_results = "\n---\n".join(
+                        [f"[Source: {r.title}]\nURL: {r.url}\n{r.description}\n" for r in results]
+                    )
+                except Exception as e:
+                    raw_search_results = "[Error] Could not perform web search."
+                    st.error("Error performing web search. See logs for details.")
             search_time = time.time() - search_start
 
             # Then analyze the results
             with st.spinner("🤔 Analyzing evidence..."):
-                async for formatted_chunk in analyze_statement(prompt, raw_search_results, search_time):
-                    response_content = formatted_chunk
-                    message_placeholder.markdown(response_content, unsafe_allow_html=True)
+                analysis_result = await analyze_statement(prompt, raw_search_results, search_time)
+                response_content = format_response(analysis_result, search_time, analysis_result.analysis_time)
+                # Record basic telemetry in session state (in-memory only)
+                try:
+                    if "metrics" not in st.session_state:
+                        st.session_state.metrics = []
+                    st.session_state.metrics.append({
+                        "timestamp": datetime.now().isoformat(),
+                        "search_time": float(search_time),
+                        "analysis_time": float(analysis_result.analysis_time),
+                        "total_time": float(search_time) + float(analysis_result.analysis_time),
+                    })
+                except Exception:
+                    # telemetry is best-effort; do not block the UI
+                    pass
+                message_placeholder.markdown(response_content, unsafe_allow_html=True)
         
         # Store the query in history
         query_id = str(time.time())
