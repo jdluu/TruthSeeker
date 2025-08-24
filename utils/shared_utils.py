@@ -36,24 +36,43 @@ def format_output(verdict: str, explanation: str, context: str, references: List
     return verdict_panel, explanation_panel, context_panel, ref_table
 
 def parse_response(response: str) -> Tuple[str, str, str, List[Dict]]:
-    """Parse the AI response into structured components"""
-    verdict = response.split('<verdict>')[1].split('</verdict>')[0].strip()
-    explanation = response.split('<explanation>')[1].split('</explanation>')[0].strip()
-    context = response.split('<context>')[1].split('</context>')[0].strip()
-    references = response.split('<references>')[1].split('</references>')[0].strip()
-    
+    """Parse the AI response into structured components.
+
+    Preferred path: use the structured JSON LLM parser (Pydantic-validated).
+    Falls back to the legacy regex/split-based parsing if the structured parser
+    cannot be imported or fails.
+    """
+    try:
+        # Local import to avoid hard dependency during incremental refactor
+        from src.truthseeker.llm.parser import parse_llm_json  # type: ignore
+        ar = parse_llm_json(response)
+        ref_list = [{"title": r.title, "url": str(r.url)} for r in ar.references]
+        return ar.verdict.value, ar.explanation, ar.context or "", ref_list
+    except Exception:
+        logger.warning("Structured LLM parser unavailable or failed; falling back to legacy parsing.")
+
+    # Legacy fallback (kept for backward compatibility)
+    try:
+        verdict = response.split("<verdict>")[1].split("</verdict>")[0].strip()
+        explanation = response.split("<explanation>")[1].split("</explanation>")[0].strip()
+        context = response.split("<context>")[1].split("</context>")[0].strip()
+        references = response.split("<references>")[1].split("</references>")[0].strip()
+    except Exception:
+        logger.exception("Failed to parse response using legacy parser; returning unverifiable placeholder.")
+        return "UNVERIFIABLE", "Could not parse model output.", "", []
+
     # Convert references to list of dicts
-    ref_list = []
-    for ref in references.split('\n'):
+    ref_list: List[Dict] = []
+    for ref in references.split("\n"):
         if ref.strip():
             try:
-                num, rest = ref.split('. ', 1)
-                name, url = rest.split(' - ', 1)
-                ref_list.append({'title': name, 'url': url})
+                num, rest = ref.split(". ", 1)
+                name, url = rest.split(" - ", 1)
+                ref_list.append({"title": name, "url": url})
             except ValueError:
                 logger.warning(f"Could not parse reference: {ref}")
                 continue
-                
+
     return verdict, explanation, context, ref_list
 
 def init_logging():
