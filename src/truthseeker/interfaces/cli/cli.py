@@ -13,6 +13,7 @@ if sys.platform == "win32":
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
@@ -255,13 +256,8 @@ async def _run_test() -> int:
         Exit code (0 for success, 1 for error).
     """
     test_statement = "The Earth is approximately 4.5 billion years old."
-    test_panel = Panel(
-        Text(test_statement, style="bold bright_white"),
-        title="[bold bright_green]Test Mode[/bold bright_green]",
-        border_style="bright_green",
-        padding=(1, 2),
-    )
-    console.print(test_panel)
+    # Print Test Mode as a simple banner
+    console.print(Rule("[bold bright_green]Test Mode[/bold bright_green]", style="bright_green"))
     console.print()
     return await _fact_check_statement(test_statement, json_output=False)
 
