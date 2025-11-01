@@ -210,9 +210,24 @@ async def _fact_check_statement(statement: str, json_output: bool = False) -> in
 
         if not json_output:
             _print_header(statement)
-            # Simple status message instead of Progress to avoid encoding issues
-            console.print("[cyan]Searching and analyzing...[/cyan]")
-            result = await service.fact_check(statement)
+            
+            # Use streaming for better UX
+            from rich.live import Live
+            from rich.status import Status
+            
+            status_message = "[cyan]Initializing...[/cyan]"
+            with Live(Status(status_message, spinner="dots"), console=console, refresh_per_second=4) as live:
+                def status_callback(msg: str) -> None:
+                    """Update status during fact-checking."""
+                    nonlocal status_message
+                    status_map = {
+                        "Analyzing...": "[yellow]Analyzing statement...[/yellow]",
+                        "Searching for evidence...": "[cyan]Searching the web for evidence...[/cyan]",
+                    }
+                    status_message = status_map.get(msg, f"[cyan]{msg}[/cyan]")
+                    live.update(Status(status_message, spinner="dots"))
+                
+                result = await service.fact_check(statement, stream_callback=status_callback)
         else:
             console.print(f"[dim]Fact-checking: {statement}[/dim]")
             console.print("[dim]Searching and analyzing...[/dim]")

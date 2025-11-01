@@ -3,7 +3,7 @@
 import json
 import logging
 import time
-from typing import Any, List
+from typing import Any, Callable, List, Optional
 
 from ..domain.models import AnalysisResult, SearchResult
 from ..infrastructure.llm.client import LLMClient
@@ -120,13 +120,17 @@ class FactCheckerService:
             return json.dumps({"error": str(e)})
 
     async def fact_check(
-        self, statement: str, search_query_prefix: str = "fact check"
+        self,
+        statement: str,
+        search_query_prefix: str = "fact check",
+        stream_callback: Optional[Callable[[str], None]] = None,
     ) -> AnalysisResult:
         """Perform fact-checking analysis on a statement using function calling.
 
         Args:
             statement: Statement to fact-check.
             search_query_prefix: Prefix for search query (used if LLM doesn't use function calling). Defaults to "fact check".
+            stream_callback: Optional callback for streaming text updates.
 
         Returns:
             AnalysisResult with verdict, explanation, and references.
@@ -177,18 +181,37 @@ When a user provides a statement to fact-check:
         ]
 
         try:
-            # Use function calling - the LLM will decide when to search
-            llm_response = await self.llm_client.chat_completion_with_tools(
-                messages=messages,
-                tools=tools,
-                tool_handlers=tool_handlers,
-                max_iterations=5,
-            )
+            # Use streaming if callback provided, otherwise use regular method
+            if stream_callback:
+                accumulated_response = ""
+                metadata = None
+                async for chunk, chunk_metadata in self.llm_client.chat_completion_with_tools_streaming(
+                    messages=messages,
+                    tools=tools,
+                    tool_handlers=tool_handlers,
+                    max_iterations=5,
+                    status_callback=stream_callback,
+                ):
+                    if chunk:
+                        accumulated_response += chunk
+                        # For streaming, we can show progress but for JSON parsing we need full response
+                    if chunk_metadata:
+                        metadata = chunk_metadata
+                
+                llm_response = accumulated_response
+                search_time = metadata.get("search_time", 0.0) if metadata else 0.0
+            else:
+                # Use function calling - the LLM will decide when to search
+                llm_response, metadata = await self.llm_client.chat_completion_with_tools(
+                    messages=messages,
+                    tools=tools,
+                    tool_handlers=tool_handlers,
+                    max_iterations=5,
+                )
+                # Extract search time from tool execution metadata
+                search_time = metadata.get("search_time", 0.0)
+            
             analysis_result = self.response_parser.parse(llm_response)
-
-            # Note: search_time is tracked within the tool handler, but we approximate it
-            # For more accurate timing, we'd need to track it in the handler
-            search_time = 0.0  # Approximated - actual search happens in tool call
 
         except Exception as e:
             logger.exception("Error during LLM analysis with function calling")
@@ -203,11 +226,15 @@ When a user provides a statement to fact-check:
                 analysis_time=0.0,
             )
 
-        analysis_time = time.time() - analysis_start
+        total_time = time.time() - analysis_start
+        
+        # Analysis time should be total time minus search time
+        # (since search happens during the tool calls)
+        analysis_time = total_time - search_time
 
         # Populate timings
         analysis_result.search_time = search_time
-        analysis_result.analysis_time = analysis_time
+        analysis_result.analysis_time = max(0.0, analysis_time)  # Ensure non-negative
 
         return analysis_result
 
