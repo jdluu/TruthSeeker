@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import streamlit as st
-from pydantic_ai.messages import ModelTextResponse, UserPrompt
 
 from ...application.fact_checker import FactCheckerService
 from ...config.settings import get_settings
@@ -148,6 +147,74 @@ def _render_sidebar() -> None:
             index=0,
             key="export_format_select",
             help="Select the format for exporting your query history",
+        )
+        
+        # Inject JavaScript to prevent typing in the selectbox input
+        st.markdown(
+            """
+            <script>
+                (function() {
+                    function disableTyping() {
+                        const selectInput = document.querySelector('[data-baseweb="select"] input[aria-label="Export Format"]');
+                        if (selectInput && !selectInput.hasAttribute('data-typing-disabled')) {
+                            // Mark as processed
+                            selectInput.setAttribute('data-typing-disabled', 'true');
+                            
+                            // Prevent typing but allow clicking
+                            selectInput.addEventListener('keydown', function(e) {
+                                // Allow Escape, Enter, Tab, Arrow keys for navigation
+                                if (!['Escape', 'Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                                    e.preventDefault();
+                                    return false;
+                                }
+                            }, true);
+                            selectInput.addEventListener('keypress', function(e) {
+                                e.preventDefault();
+                                return false;
+                            }, true);
+                            selectInput.addEventListener('input', function(e) {
+                                // Prevent text input but allow dropdown to work
+                                if (e.inputType && e.inputType.startsWith('insert')) {
+                                    e.preventDefault();
+                                    return false;
+                                }
+                            }, true);
+                            // Hide caret
+                            selectInput.style.caretColor = 'transparent';
+                            selectInput.style.cursor = 'pointer';
+                        }
+                    }
+                    
+                    // Run immediately
+                    disableTyping();
+                    
+                    // Also run after a short delay for dynamic rendering
+                    setTimeout(disableTyping, 100);
+                    
+                    // Watch for DOM changes in sidebar only (more efficient)
+                    const sidebar = document.querySelector('[data-testid="stSidebar"]');
+                    if (sidebar) {
+                        const observer = new MutationObserver(function(mutations) {
+                            let shouldCheck = false;
+                            for (let mutation of mutations) {
+                                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                                    shouldCheck = true;
+                                    break;
+                                }
+                            }
+                            if (shouldCheck) {
+                                disableTyping();
+                            }
+                        });
+                        observer.observe(sidebar, {
+                            childList: true,
+                            subtree: true
+                        });
+                    }
+                })();
+            </script>
+            """,
+            unsafe_allow_html=True,
         )
 
         if st.button("📥 Export History", key="export_history", use_container_width=True):
@@ -299,18 +366,19 @@ def _render_chat_history() -> None:
     else:
         # Show full conversation
         for message in st.session_state.messages:
-            with st.chat_message(
-                "human" if isinstance(message, UserPrompt) else "assistant"
-            ):
-                if isinstance(message, UserPrompt):
-                    st.markdown(f"**You**: {message.content}", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"**AI**: {message.content}", unsafe_allow_html=True)
-                    st.markdown("---")
-                    st.markdown(
-                        '<p style="color: #CCCCCC; font-size: 0.875rem; margin-top: 1rem; padding: 0.75rem; background-color: #2E2E2E; border-radius: 0.5rem; border-left: 3px solid #FF4B4B;"><strong>ℹ️ Note:</strong> Each fact-check is independent and based on current web evidence. Results may vary if checked again due to changing web content.</p>',
-                        unsafe_allow_html=True,
-                    )
+            if isinstance(message, dict):
+                role = message.get("role", "assistant")
+                content = message.get("content", "")
+                with st.chat_message(role):
+                    if role == "user":
+                        st.markdown(f"**You**: {content}", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"**AI**: {content}", unsafe_allow_html=True)
+                        st.markdown("---")
+                        st.markdown(
+                            '<p style="color: #CCCCCC; font-size: 0.875rem; margin-top: 1rem; padding: 0.75rem; background-color: #2E2E2E; border-radius: 0.5rem; border-left: 3px solid #FF4B4B;"><strong>ℹ️ Note:</strong> Each fact-check is independent and based on current web evidence. Results may vary if checked again due to changing web content.</p>',
+                            unsafe_allow_html=True,
+                        )
 
 
 def _record_metrics(search_time: float, analysis_time: float) -> None:
@@ -332,7 +400,7 @@ async def _handle_user_input(prompt: str, service: FactCheckerService) -> None:
     """Handle user input and perform fact-checking."""
     # Display user message
     st.chat_message("user").markdown(prompt)
-    st.session_state.messages.append(UserPrompt(content=prompt))
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
     # Display AI response with progress
     with st.chat_message("assistant"):
@@ -381,7 +449,7 @@ async def _handle_user_input(prompt: str, service: FactCheckerService) -> None:
     )
 
     # Add to messages and set as current query
-    st.session_state.messages.append(ModelTextResponse(content=response_content))
+    st.session_state.messages.append({"role": "assistant", "content": response_content})
     st.session_state.current_query_id = query_id
 
     # Force refresh
@@ -538,11 +606,18 @@ def _get_custom_css() -> str:
     [data-testid="stSidebar"] [data-baseweb="select"] input {
         color: #FFFFFF !important;
         background-color: #2E2E2E !important;
+        caret-color: transparent !important;
+        cursor: pointer !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] input:focus {
+        caret-color: transparent !important;
     }
     
     [data-testid="stSidebar"] [data-baseweb="select"] input::placeholder {
         color: #888888 !important;
     }
+    
     
     /* Dropdown menu items */
     [data-baseweb="popover"] [role="option"] {

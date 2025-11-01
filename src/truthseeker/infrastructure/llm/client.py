@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
-import logfire
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessage
 
@@ -32,12 +31,6 @@ class LLMClient:
             base_url=base_url,
             api_key=api_key,
         )
-        # Configure logfire (best-effort, no-op if token not present)
-        try:
-            logfire.configure(send_to_logfire="if-token-present")
-            logfire.instrument_openai(self._client)
-        except Exception:
-            logger.debug("Logfire instrumentation failed; continuing without it.")
 
     async def chat_completion(
         self, messages: list[dict[str, str]], **kwargs
