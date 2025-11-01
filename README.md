@@ -1,23 +1,37 @@
 # AI-Powered Fact Checker
 
 AI-Powered Fact Checker verifies short statements and claims by performing live web searches and using a language model to analyze the evidence.  
-The primary interface is a **Streamlit** web application.
+The application provides both a **Streamlit web interface** and a **command-line interface** (CLI) for fact-checking.
+
+![Python](https://img.shields.io/badge/Python-3.13-blue?logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-red?logo=streamlit&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-2.10+-green?logo=pydantic&logoColor=white)
+![DeepSeek](https://img.shields.io/badge/DeepSeek-API-purple?logo=openai&logoColor=white)
+![uv](https://img.shields.io/badge/uv-Package%20Manager-orange?logo=python&logoColor=white)
+![Rich](https://img.shields.io/badge/Rich-13.9+-brightgreen?logo=python&logoColor=white)
 
 ---
 
 ## ✨ Features
-- 🔎 Real-time web search using Brave Search  
+- 🔎 Real-time web search using Brave Search with function calling  
 - 🤖 LLM-based analysis that returns a structured **verdict, explanation, context, and references**  
-- 🖥️ Streamlit web UI with responsive layout and accessibility improvements  
+- 🖥️ Streamlit web UI with unified dark theme and modern interface  
+- 💻 CLI interface with rich terminal formatting for automation and testing  
 - 🧩 Typed domain models (Pydantic) for robust validation and serialization  
 - 🌐 BraveSearch client with retries, backoff, and simple TTL caching  
 - 🛡️ Sanitization of HTML and user-provided input to reduce XSS risk  
-- 📤 Export history to JSON or PDF  
+- 📤 Export history to JSON, PDF, or TXT format  
 - 🧪 CI linting and type-checking configuration included  
+- ⚡ Streaming support for real-time feedback during analysis  
 
 ---
 
 ## 🚀 Quickstart (Developer)
+
+### Requirements
+
+- **Python 3.13+** (The project uses Python 3.13.9 and requires `>=3.13`)
+- **uv** (Fast Python package installer)
 
 1. **Install uv (if not already installed)**
 
@@ -55,7 +69,10 @@ The primary interface is a **Streamlit** web application.
    uv sync
    ```
 
-   This will automatically create a virtual environment (`.venv`) if it doesn't exist and install all dependencies.
+   This will automatically:
+   - Install Python 3.13.9 (if not already installed via uv)
+   - Create a virtual environment (`.venv`) 
+   - Install all dependencies from `pyproject.toml`
 
    **Note**: To add new dependencies, use `uv add <package>`. Dependencies are managed in `pyproject.toml` and locked in `uv.lock`.
 
@@ -92,7 +109,7 @@ The primary interface is a **Streamlit** web application.
 | `DEEPSEEK_API_KEY` | API key for DeepSeek (required) - [Get your key](https://platform.deepseek.com/api_keys) |
 | `BRAVE_API_KEY`    | Brave Search API key (required)                                       |
 
-**DeepSeek API**: The project uses [DeepSeek API](https://api-docs.deepseek.com/) which is OpenAI-compatible and supports function calling. The model used is `deepseek-chat` (DeepSeek-V3.2-Exp non-thinking mode).
+**DeepSeek API**: The project uses [DeepSeek API](https://api-docs.deepseek.com/) which is OpenAI-compatible and supports function calling for dynamic web search. The model used is `deepseek-chat` (DeepSeek-V3.2-Exp non-thinking mode). The implementation leverages function calling to allow the LLM to request web searches dynamically during analysis.
 
 ---
 
@@ -168,21 +185,24 @@ main.py                  # Main entry point (Streamlit UI)
 
 src/truthseeker/         # All implementation code (clean architecture)
 ├── domain/              # Core business models (no external dependencies)
-├── application/         # Business logic services
+├── application/         # Business logic services (FactCheckerService)
 ├── infrastructure/      # External system integrations
-│   ├── http/           # HTTP clients
-│   ├── search/         # Search implementations  
-│   └── llm/            # LLM clients and parsers
+│   ├── http/           # HTTP clients (httpx)
+│   ├── search/         # Search implementations (BraveSearchClient)
+│   └── llm/            # LLM clients and parsers (DeepSeek API)
 ├── interfaces/         # UI adapters
-│   └── streamlit/      # Streamlit web UI
-├── config/             # Configuration management
-└── utils/              # Shared utilities
+│   ├── streamlit/      # Streamlit web UI
+│   └── cli/            # Command-line interface
+├── config/             # Configuration management (Settings)
+└── utils/              # Shared utilities (PDF, sanitization)
 ```
 
 **Other details**
 
 * 🔒 **Type safety**: Uses Pydantic models + `mypy`, `ruff`, `black` (see `pyproject.toml`).
 * ⚡ **Caching**: BraveSearchClient includes an in-memory TTL cache; optional file persistence via `cache_file`.
+* 🐍 **Python Version**: Requires Python 3.13+ (currently tested with 3.13.9).
+* 📦 **Dependencies**: Minimal direct dependencies (10 packages); transitive dependencies managed automatically by uv.
 
 ---
 
