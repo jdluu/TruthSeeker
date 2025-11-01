@@ -96,15 +96,63 @@ The primary interface is a **Streamlit** web application.
 
 ---
 
-## 🏃 Running the Streamlit UI
+## 🏃 Running the Application
 
-Start the app:
+### Streamlit UI (Web Interface)
+
+Start the web app:
 
 ```bash
 streamlit run main.py
 ```
 
 Then open your browser. Enter a statement in the chat input and click **Fact Check**.
+
+### CLI (Command Line Interface)
+
+Test the application from the terminal:
+
+```bash
+# After installing with: uv sync
+truthseeker "The capital of France is Paris"
+```
+
+**Alternative ways to run CLI:**
+```bash
+# Using the installed command
+truthseeker "<statement>"
+
+# Using Python module (if command not available)
+python -m truthseeker.interfaces.cli.cli "<statement>"
+```
+
+**CLI Options:**
+
+```bash
+# Fact-check a statement
+truthseeker "<statement>"
+
+# Run a test fact-check
+truthseeker --test
+
+# Output results as JSON (useful for automation)
+truthseeker --json "<statement>"
+
+# Show help
+truthseeker --help
+```
+
+**Example:**
+```bash
+truthseeker "Python was created in 1991"
+```
+
+The CLI is useful for:
+- Automated testing
+- CI/CD pipelines
+- Scripting and automation
+- Quick fact-checks without opening a browser
+- AI agent testing and validation
 
 ---
 

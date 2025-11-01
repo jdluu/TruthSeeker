@@ -99,13 +99,14 @@ class FactCheckerService:
             
             formatted = self._format_search_results(results)
             # Return both formatted string and structured data
+            # Convert Pydantic models to dict, ensuring URLs are strings
             return json.dumps(
                 {
                     "formatted": formatted,
                     "results": [
                         {
                             "title": r.title,
-                            "url": r.url,
+                            "url": str(r.url),  # Convert HttpUrl to string
                             "description": r.description,
                         }
                         for r in results
