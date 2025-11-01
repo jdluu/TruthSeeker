@@ -797,44 +797,35 @@ def _get_custom_css() -> str:
         background-color: #1A1C20 !important;
     }
     
-    [data-testid="stChatInputContainer"] > div,
-    [data-testid="stChatInputContainer"] > div > div {
-        background-color: #1A1C20 !important;
-    }
-    
     /* Chat input textarea styling - distinct darker background */
-    [data-testid="stChatInputTextInput"],
-    [data-testid="stChatInputTextInput"] textarea,
-    [data-baseweb="base-input"] textarea {
+    [data-testid="stChatInputTextInput"] textarea {
         background-color: #2E2E2E !important;
         color: #FFFFFF !important;
         border: 1px solid #404040 !important;
         border-radius: 0.5rem !important;
     }
     
-    [data-testid="stChatInputTextInput"] textarea:focus,
-    [data-baseweb="base-input"] textarea:focus {
+    [data-testid="stChatInputTextInput"] textarea:focus {
         border-color: #FF4B4B !important;
         box-shadow: 0 0 0 2px rgba(255, 75, 75, 0.2) !important;
         background-color: #2E2E2E !important;
     }
     
-    [data-testid="stChatInputTextInput"] textarea::placeholder,
-    [data-baseweb="base-input"] textarea::placeholder {
+    [data-testid="stChatInputTextInput"] textarea::placeholder {
         color: #888888 !important;
         opacity: 1 !important;
     }
     
     /* Chat input send button */
-    [data-testid="stChatInputContainer"] button,
-    [data-testid="stChatInputContainer"] [role="button"] {
+    [data-testid="stChatInputContainer"] button[aria-label*="Send"],
+    [data-testid="stChatInputContainer"] button[type="submit"] {
         background-color: #FF4B4B !important;
         color: #FFFFFF !important;
         border: 1px solid #FF4B4B !important;
     }
     
-    [data-testid="stChatInputContainer"] button:hover,
-    [data-testid="stChatInputContainer"] [role="button"]:hover {
+    [data-testid="stChatInputContainer"] button[aria-label*="Send"]:hover,
+    [data-testid="stChatInputContainer"] button[type="submit"]:hover {
         background-color: #FF6B6B !important;
         border-color: #FF6B6B !important;
     }
@@ -854,27 +845,6 @@ def _get_custom_css() -> str:
     /* Main content area background */
     .main .block-container {
         background-color: transparent !important;
-    }
-    
-    /* Chat input container and parent blocks - specific targeting */
-    [data-baseweb="block"]:has([data-testid="stChatInputContainer"]),
-    .element-container:has([data-testid="stChatInputContainer"]),
-    [data-testid="stAppViewContainer"] > div:has([data-testid="stChatInputContainer"]) {
-        background-color: #1A1C20 !important;
-    }
-    
-    /* Target specific Streamlit emotion-cache containers for chat input area only */
-    [class*="st-emotion-cache-qdbtli"],
-    div[class*="st-emotion-cache"]:has([data-testid="stChatInputContainer"]) {
-        background-color: #1A1C20 !important;
-        background: #1A1C20 !important;
-    }
-    
-    /* Override Streamlit default background only in chat input containers */
-    div:has([data-testid="stChatInputContainer"])[style*="background: rgb(14, 17, 23)"],
-    [class*="st-emotion-cache-qdbtli"][style*="background: rgb(14, 17, 23)"] {
-        background-color: #1A1C20 !important;
-        background: #1A1C20 !important;
     }
 </style>
 """
