@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -63,6 +64,9 @@ class BraveSearchClient:
         self.cache_ttl = int(cache_ttl)
         self._cache: Dict[str, Tuple[float, List[SearchResult]]] = {}
         self.cache_file = Path(cache_file) if cache_file else None
+        self._pending_cache_write: Optional[Any] = None  # asyncio.Task when available
+        self._cache_dirty = False
+        self._last_cache_write_time = 0.0
 
         if self.cache_file:
             try:
@@ -129,10 +133,46 @@ class BraveSearchClient:
         """Store results in cache."""
         self._cache[key] = (time.time(), results)
         if self.cache_file:
-            try:
-                self._save_cache_file()
-            except Exception:
-                logger.exception("Failed to persist cache file.")
+            # Mark cache as dirty for debounced write
+            self._cache_dirty = True
+            # Schedule write in background (non-blocking)
+            self._schedule_cache_write()
+
+    def _schedule_cache_write(self) -> None:
+        """Schedule a debounced cache file write (non-blocking)."""
+        current_time = time.time()
+        # Simple debounce: only write if last write was > 2 seconds ago
+        if current_time - self._last_cache_write_time < 2.0:
+            return  # Too soon, skip write
+        
+        # Try async write if event loop is available
+        try:
+            loop = asyncio.get_running_loop()
+            if self._pending_cache_write and hasattr(self._pending_cache_write, 'done') and not self._pending_cache_write.done():
+                return  # Already scheduled
+            
+            async def write_cache_after_delay() -> None:
+                """Write cache after a short delay to debounce multiple writes."""
+                await asyncio.sleep(2.0)  # 2 second debounce
+                if self._cache_dirty:
+                    try:
+                        self._save_cache_file()
+                        self._cache_dirty = False
+                        self._last_cache_write_time = time.time()
+                    except Exception:
+                        logger.exception("Failed to persist cache file in async write.")
+            
+            self._pending_cache_write = asyncio.create_task(write_cache_after_delay())
+        except RuntimeError:
+            # No event loop available, write synchronously but debounced
+            if current_time - self._last_cache_write_time >= 2.0:
+                try:
+                    if self._cache_dirty:
+                        self._save_cache_file()
+                        self._cache_dirty = False
+                        self._last_cache_write_time = time.time()
+                except Exception:
+                    logger.exception("Failed to persist cache file.")
 
     @retry(
         reraise=True,

@@ -3,10 +3,12 @@
 import asyncio
 import base64
 import json
+import os
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import streamlit as st
 
@@ -238,16 +240,25 @@ def _render_sidebar() -> None:
                     pdf_filename = (
                         f"fact_check_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                     )
-                    generate_pdf(st.session_state.query_history, pdf_filename)
+                    try:
+                        generate_pdf(st.session_state.query_history, pdf_filename)
 
-                    with open(pdf_filename, "rb") as pdf_file:
-                        pdf_bytes = pdf_file.read()
-                        pdf_base64 = base64.b64encode(pdf_bytes).decode()
+                        with open(pdf_filename, "rb") as pdf_file:
+                            pdf_bytes = pdf_file.read()
+                            pdf_base64 = base64.b64encode(pdf_bytes).decode()
 
-                    st.markdown(
-                        f'<a href="data:application/pdf;base64,{pdf_base64}" download="{pdf_filename}" style="display: block; padding: 0.75rem; text-align: center; background-color: #FF4B4B; color: white; border-radius: 0.5rem; text-decoration: none; margin-top: 0.5rem; font-weight: 500; transition: all 0.2s;">⬇️ Download PDF ({history_count} queries)</a>',
-                        unsafe_allow_html=True,
-                    )
+                        st.markdown(
+                            f'<a href="data:application/pdf;base64,{pdf_base64}" download="{pdf_filename}" style="display: block; padding: 0.75rem; text-align: center; background-color: #FF4B4B; color: white; border-radius: 0.5rem; text-decoration: none; margin-top: 0.5rem; font-weight: 500; transition: all 0.2s;">⬇️ Download PDF ({history_count} queries)</a>',
+                            unsafe_allow_html=True,
+                        )
+                    finally:
+                        # Clean up temporary PDF file
+                        try:
+                            pdf_path = Path(pdf_filename)
+                            if pdf_path.exists():
+                                pdf_path.unlink()
+                        except Exception:
+                            pass  # Best effort cleanup
                 elif export_format == "TXT":
                     # Generate plain text format
                     txt_content = "=" * 70 + "\n"
@@ -397,33 +408,47 @@ def _record_metrics(search_time: float, analysis_time: float) -> None:
 
 
 async def _handle_user_input(prompt: str, service: FactCheckerService) -> None:
-    """Handle user input and perform fact-checking."""
+    """Handle user input and perform fact-checking with streaming support."""
     # Display user message
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Display AI response with progress
+    # Display AI response with streaming
     with st.chat_message("assistant"):
+        status_placeholder = st.empty()
         message_placeholder = st.empty()
 
-        # Perform fact-checking
-        with st.spinner("🔍 Searching the web..."):
-            try:
-                analysis_result = await service.fact_check(prompt)
-            except Exception as e:
-                st.error(f"Error performing fact-check: {str(e)}")
-                from ...domain.models import Verdict
+        def stream_callback(status: str) -> None:
+            """Callback for streaming status updates."""
+            status_messages = {
+                "Analyzing...": "🤖 Analyzing statement...",
+                "Searching for evidence...": "🔍 Searching the web for evidence...",
+            }
+            display_text = status_messages.get(status, f"⏳ {status}")
+            status_placeholder.info(display_text)
 
-                analysis_result = AnalysisResult(
-                    verdict=Verdict.UNVERIFIABLE,
-                    explanation=f"An error occurred: {str(e)}",
-                    context=None,
-                    references=[],
-                    search_time=0.0,
-                    analysis_time=0.0,
-                )
+        # Perform fact-checking with streaming
+        try:
+            # Use streaming for better UX
+            analysis_result = await service.fact_check(
+                prompt, stream_callback=stream_callback
+            )
+        except Exception as e:
+            status_placeholder.empty()
+            st.error(f"Error performing fact-check: {str(e)}")
+            from ...domain.models import Verdict
 
-        # Format and display results
+            analysis_result = AnalysisResult(
+                verdict=Verdict.UNVERIFIABLE,
+                explanation=f"An error occurred: {str(e)}",
+                context=None,
+                references=[],
+                search_time=0.0,
+                analysis_time=0.0,
+            )
+
+        # Clear status and display final results
+        status_placeholder.empty()
         response_content = format_analysis_result(
             analysis_result,
             analysis_result.search_time,
