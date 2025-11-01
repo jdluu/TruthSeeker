@@ -75,20 +75,24 @@ The primary interface is a **Streamlit** web application.
    Create a `.env` file in the project root with your API keys:
 
    ```dotenv
-   SYNTHETIC_API_KEY=your_synthetic_api_key
+   DEEPSEEK_API_KEY=your_deepseek_api_key
    BRAVE_API_KEY=your_brave_api_key
-   LLM_MODEL=hf:meta-llama/Llama-3.3-70B-Instruct
    ```
+
+   **Getting API Keys:**
+   - **DeepSeek API Key**: Get your API key from [DeepSeek Platform](https://platform.deepseek.com/api_keys)
+   - **Brave API Key**: Get your API key from [Brave Search API](https://api.search.brave.com/)
 
 ---
 
 ## 🔧 Environment Variables
 
-| Variable            | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| `SYNTHETIC_API_KEY` | API key for Synthetic.new (preferred)                |
-| `BRAVE_API_KEY`     | Brave Search API key                                 |
-| `LLM_MODEL`         | Model identifier (optional; defaults can be used)    |
+| Variable           | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| `DEEPSEEK_API_KEY` | API key for DeepSeek (required) - [Get your key](https://platform.deepseek.com/api_keys) |
+| `BRAVE_API_KEY`    | Brave Search API key (required)                                       |
+
+**DeepSeek API**: The project uses [DeepSeek API](https://api-docs.deepseek.com/) which is OpenAI-compatible and supports function calling. The model used is `deepseek-chat` (DeepSeek-V3.2-Exp non-thinking mode).
 
 ---
 

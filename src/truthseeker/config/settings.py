@@ -15,9 +15,9 @@ class Settings:
         load_dotenv()
 
     @property
-    def synthetic_api_key(self) -> Optional[str]:
-        """Synthetic.new API key for LLM access."""
-        return os.getenv("SYNTHETIC_API_KEY")
+    def deepseek_api_key(self) -> Optional[str]:
+        """DeepSeek API key for LLM access."""
+        return os.getenv("DEEPSEEK_API_KEY")
 
     @property
     def brave_api_key(self) -> Optional[str]:
@@ -26,8 +26,8 @@ class Settings:
 
     @property
     def llm_model(self) -> str:
-        """LLM model identifier."""
-        return os.getenv("LLM_MODEL", "hf:mistralai/Mistral-7B-Instruct-v0.3")
+        """LLM model identifier. Uses DeepSeek's default chat model."""
+        return "deepseek-chat"
 
     @property
     def http_timeout_seconds(self) -> float:

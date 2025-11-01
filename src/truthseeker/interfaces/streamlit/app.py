@@ -46,7 +46,7 @@ def _create_fact_checker_service() -> FactCheckerService:
     )
 
     llm_client = LLMClient(
-        api_key=settings.synthetic_api_key,
+        api_key=settings.deepseek_api_key,
         model=settings.llm_model,
     )
 
