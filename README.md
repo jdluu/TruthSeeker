@@ -19,26 +19,59 @@ The primary interface is a **Streamlit** web application.
 
 ## 🚀 Quickstart (Developer)
 
-1. **Clone the repository**
+1. **Install uv (if not already installed)**
+
+   This project uses `uv` for dependency management. Install it first:
+   
+   **On macOS/Linux:**
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+   
+   **On Windows:**
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+   
+   Or via pip:
+   ```bash
+   pip install uv
+   ```
+   
+   **Verify installation:**
+   ```bash
+   uv --version
+   ```
+
+2. **Clone the repository**
    ```bash
    git clone https://github.com/jdluu/TruthSeeker.git
    cd TruthSeeker
    ```
 
-2. **Create and activate a virtual environment**
+3. **Install dependencies using uv**
 
    ```bash
-   python -m venv .venv
+   uv sync
+   ```
+
+   This will automatically create a virtual environment (`.venv`) if it doesn't exist and install all dependencies.
+
+   **Note**: To add new dependencies, use `uv add <package>`. Dependencies are managed in `pyproject.toml` and locked in `uv.lock`.
+
+4. **Activate the virtual environment**
+
+   On Windows:
+   ```bash
+   .\.venv\Scripts\activate.ps1
+   ```
+
+   On macOS/Linux:
+   ```bash
    source .venv/bin/activate
    ```
 
-3. **Install dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables**
+5. **Set up environment variables**
    Create a `.env` file in the project root with your API keys:
 
    ```dotenv
@@ -64,7 +97,7 @@ The primary interface is a **Streamlit** web application.
 Start the app:
 
 ```bash
-streamlit run streamlit_ui.py
+streamlit run main.py
 ```
 
 Then open your browser. Enter a statement in the chat input and click **Fact Check**.
@@ -75,14 +108,23 @@ Then open your browser. Enter a statement in the chat input and click **Fact Che
 
 **Code organization**
 
+The project follows clean architecture principles:
+
 ```
-streamlit_ui.py                 # Streamlit web interface (entrypoint)
-src/truthseeker/models.py       # Pydantic models and enums
-src/truthseeker/http.py         # Shared AsyncClient factory
-src/truthseeker/search/client.py# BraveSearchClient (retries + caching)
-src/truthseeker/llm/parser.py   # LLM JSON prompt + parser (validates models)
-tools/web_search.py             # Compatibility wrapper for older callers
-utils/                          # Helpers (client loader, sanitization, PDF export)
+Root level:
+main.py                  # Main entry point (Streamlit UI)
+
+src/truthseeker/         # All implementation code (clean architecture)
+├── domain/              # Core business models (no external dependencies)
+├── application/         # Business logic services
+├── infrastructure/      # External system integrations
+│   ├── http/           # HTTP clients
+│   ├── search/         # Search implementations  
+│   └── llm/            # LLM clients and parsers
+├── interfaces/         # UI adapters
+│   └── streamlit/      # Streamlit web UI
+├── config/             # Configuration management
+└── utils/              # Shared utilities
 ```
 
 **Other details**

@@ -1,43 +1,61 @@
+"""Input sanitization utilities for security."""
+
 import re
-import bleach
-from urllib.parse import urlparse
 from typing import Optional
 
-# Query sanitization: preserve useful punctuation for searches while removing
-# control characters and angle brackets that could be misinterpreted as HTML.
-def sanitize_query(query: str) -> str:
-    """Sanitize the search query for use with external search APIs.
+import bleach
+from urllib.parse import urlparse
 
-    - Removes control characters and angle brackets.
-    - Trims and enforces a 500 character limit.
-    - Preserves common search punctuation so queries remain useful.
+
+def sanitize_query(query: str) -> str:
+    """Sanitize search query for external APIs.
+
+    Removes control characters and angle brackets while preserving
+    useful punctuation for search queries.
+
+    Args:
+        query: Raw query string.
+
+    Returns:
+        Sanitized query string (max 500 characters).
     """
     if not isinstance(query, str):
         return ""
     q = query.strip()
-    # Remove control characters and angle brackets which could break downstream systems
-    q = re.sub(r'[\x00-\x1f<>]', '', q)
+    # Remove control characters and angle brackets
+    q = re.sub(r"[\x00-\x1f<>]", "", q)
     return q[:500]
 
 
 def _is_allowed_href(href: Optional[str]) -> bool:
-    """Allow only safe URL schemes for hrefs."""
+    """Check if href uses an allowed URL scheme.
+
+    Args:
+        href: URL string to check.
+
+    Returns:
+        True if scheme is allowed (http, https, mailto, or empty).
+    """
     if not href:
         return False
     try:
-        p = urlparse(href)
+        parsed = urlparse(href)
     except Exception:
         return False
-    # Allow http, https, and mailto links only
-    return p.scheme in ("http", "https", "mailto", "")
+    return parsed.scheme in ("http", "https", "mailto", "")
 
 
 def sanitize_html(content: str) -> str:
     """Sanitize HTML content to prevent XSS attacks.
 
-    - Allows a conservative set of tags and attributes.
-    - Ensures href attributes use safe protocols (http(s) or mailto).
-    - Adds rel="noopener noreferrer" and target="_blank" to external links for safety.
+    Allows a conservative set of tags and attributes, ensures href
+    attributes use safe protocols, and adds security attributes to links.
+
+    Args:
+        content: HTML content to sanitize.
+
+    Returns:
+        Sanitized HTML string.
     """
     if not isinstance(content, str) or not content:
         return ""
@@ -71,15 +89,14 @@ def sanitize_html(content: str) -> str:
         strip=True,
     )
 
-    # Post-process hrefs to ensure allowed protocols and safe link attributes.
-    def replace_href(match: re.Match) -> str:
+    # Post-process hrefs for security
+    def replace_href(match: re.Match[str]) -> str:
         href_val = match.group(1)
         if _is_allowed_href(href_val):
-            # For external links, ensure they open safely
             return f'href="{href_val}" target="_blank" rel="noopener noreferrer"'
-        # Neutralize disallowed hrefs
         return 'href="#"'
 
     cleaned = re.sub(r'href="([^"]*)"', replace_href, cleaned)
 
     return cleaned
+
